@@ -21,6 +21,17 @@
     return String(n).split('').map((d) => (ARABIC_DIGITS[d] !== undefined ? ARABIC_DIGITS[d] : d)).join('');
   }
 
+  // إزالة علامات التشكيل (الحركات) من النص العربي لتسهيل القراءة والبحث
+  // يشمل الحركات، والتنوين، والشدة، والسكون، والمدّة، وعلامة التطويل
+  const TASHKEEL_REGEX = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED\u0640]/g;
+  function stripTashkeel(str) {
+    return String(str).replace(TASHKEEL_REGEX, '');
+  }
+
+  function cleanSurahName(nameAr) {
+    return stripTashkeel(String(nameAr).replace(/^(سُورَةُ|سورة)\s*/, '').trim());
+  }
+
   let toastTimer = null;
   function showToast(msg) {
     const el = $('#toast');
@@ -55,6 +66,25 @@
           tab === 'duas' ? 'الأدعية الصحيحة' : 'مواقيت الصلاة والقبلة';
       });
     });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* إخفاء/إظهار الشريط السفلي أثناء القراءة                          */
+  /* ---------------------------------------------------------------- */
+  function initTabbarToggle() {
+    const hideBtn = $('#btn-hide-tabbar');
+    const showBtn = $('#btn-show-tabbar');
+
+    if (hideBtn) {
+      hideBtn.addEventListener('click', () => {
+        document.body.classList.add('tabbar-hidden');
+      });
+    }
+    if (showBtn) {
+      showBtn.addEventListener('click', () => {
+        document.body.classList.remove('tabbar-hidden');
+      });
+    }
   }
 
   /* ---------------------------------------------------------------- */
@@ -97,7 +127,7 @@
     wrap.innerHTML = list
       .map(
         (s) => {
-          const cleanName = s.nameAr.replace(/^(سُورَةُ|سورة)\s*/, '').trim();
+          const cleanName = cleanSurahName(s.nameAr);
           const revType = (s.revelationType === 'Meccan' || s.revelationType === 'مكية') ? 'مكية' : 'مدنية';
           return `
         <button class="surah-item" data-num="${s.number}">
@@ -136,10 +166,11 @@
     $('#btn-index').addEventListener('click', () => openOverlay('#index-overlay'));
     $('#btn-close-index').addEventListener('click', () => closeOverlay('#index-overlay'));
     $('#surah-search').addEventListener('input', (e) => {
-      const q = e.target.value.trim();
+      // البحث بدون تشكيل حتى لا يضطر المستخدم لكتابة الحركات
+      const q = stripTashkeel(e.target.value.trim());
       if (!q) return renderSurahList(state.surahList);
       const filtered = state.surahList.filter(
-        (s) => s.nameAr.includes(q) || s.nameEn.toLowerCase().includes(q.toLowerCase())
+        (s) => stripTashkeel(s.nameAr).includes(q) || s.nameEn.toLowerCase().includes(q.toLowerCase())
       );
       renderSurahList(filtered);
     });
@@ -161,7 +192,7 @@
       state.currentPageData = pageData;
       localStorage.setItem('almus-hraf:currentPage', String(pageNumber));
 
-      const cleanHeaderName = pageData.headerSurahName.replace(/^(سُورَةُ|سورة)\s*/, '').trim();
+      const cleanHeaderName = cleanSurahName(pageData.headerSurahName);
       $('#surah-name-ar').textContent = `سورة ${cleanHeaderName}`;
 
       const firstAyah = pageData.ayahs && pageData.ayahs[0];
@@ -200,11 +231,11 @@
           headerDiv.style.fontWeight = 'bold';
           headerDiv.style.color = 'var(--gold-deep)';
 
-          const cleanName = a.surah.nameAr.replace(/^(سُورَةُ|سورة)\s*/, '').trim();
+          const cName = cleanSurahName(a.surah.nameAr);
           const rev = (a.surah.revelationType === 'Meccan' || a.surah.revelationType === 'مكية') ? 'مكية' : 'مدنية';
 
           headerDiv.innerHTML = `
-            <div style="font-family: var(--font-display); font-size: 20px;">سورة ${cleanName}</div>
+            <div style="font-family: var(--font-display); font-size: 20px;">سورة ${cName}</div>
             <div style="font-size: 12px; color: var(--ink-soft); font-weight: normal; margin-top: 2px;">${rev} · ${toArabicDigits(a.surah.numberOfAyahs)} آية</div>
           `;
           frag.appendChild(headerDiv);
@@ -245,9 +276,12 @@
 
   /* ---------------------------------------------------------------- */
   /* تقليب الصفحات بالسحب (Swipe / Drag) — إحساس المصحف الحقيقي        */
-  /* يعمل باللمس وبالماوس معًا عبر Pointer Events، مع رجوع للأزرار.     */
-  /* الاتجاه: سحب لليسار → الصفحة التالية (للأمام في المصحف).          */
-  /*          سحب لليمين → الصفحة السابقة (للخلف في المصحف).           */
+  /* يعمل باللمس وبالماوس معًا عبر Pointer Events.                     */
+  /* المصحف يُقرأ من اليمين لليسار: الصفحة الأولى (الفاتحة) في أقصى    */
+  /* اليمين، وكل صفحة تالية (البقرة...) تأتي بعدها ناحية اليسار.       */
+  /* لذلك: السحب من اليسار إلى اليمين (تحريك الإصبع لليمين) يكشف ما    */
+  /* هو "بعدها" في المصحف فيقدّم الصفحة التالية (goNextPage).          */
+  /* والسحب من اليمين إلى اليسار يرجع للصفحة السابقة (goPrevPage).     */
   /* ---------------------------------------------------------------- */
   let isFlipAnimating = false;
 
@@ -379,9 +413,12 @@
       const ratio = currentX / pageWidth;
       const isFlick = Math.abs(velocity) > FLICK_VELOCITY_THRESHOLD;
 
-      if (ratio <= -SWIPE_RATIO_THRESHOLD || (isFlick && currentX < -10)) {
+      // المصحف يُقرأ من اليمين لليسار: السحب لليمين (ratio موجب) يكشف
+      // الصفحة "التالية" في ترتيب المصحف، والسحب لليسار (ratio سالب)
+      // يرجع "للصفحة السابقة".
+      if (ratio >= SWIPE_RATIO_THRESHOLD || (isFlick && currentX > 10)) {
         goNextPage();
-      } else if (ratio >= SWIPE_RATIO_THRESHOLD || (isFlick && currentX > 10)) {
+      } else if (ratio <= -SWIPE_RATIO_THRESHOLD || (isFlick && currentX < -10)) {
         goPrevPage();
       } else {
         snapBack();
@@ -414,11 +451,6 @@
     );
   }
 
-  function initPageNav() {
-    $('#btn-prev-surah').addEventListener('click', goPrevPage);
-    $('#btn-next-surah').addEventListener('click', goNextPage);
-  }
-
   function initSwipeHintOnce() {
     if (localStorage.getItem('almus-hraf:sawSwipeHint')) return;
     setTimeout(() => {
@@ -432,8 +464,8 @@
   /* ---------------------------------------------------------------- */
   function openAyahModal(surah, ayah, text, surahNameAr) {
     state.activeAyah = { surah, ayah, text, surahNameAr };
-    const cleanSurahName = surahNameAr.replace(/^(سُورَةُ|سورة)\s*/, '').trim();
-    $('#ayah-modal-title').textContent = `سورة ${cleanSurahName} — الآية ${toArabicDigits(ayah)}`;
+    const cName = cleanSurahName(surahNameAr);
+    $('#ayah-modal-title').textContent = `سورة ${cName} — الآية ${toArabicDigits(ayah)}`;
     $('#ayah-modal-text').textContent = text;
     $('#ayah-panel-content').innerHTML = '';
     $('#ayah-panel-content').classList.remove('open');
@@ -476,7 +508,7 @@
     ctx.fillStyle = '#c5a059';
     ctx.font = 'bold 42px "Traditional Arabic", serif';
     ctx.textAlign = 'center';
-    const cleanSurah = surahName.replace(/^(سُورَةُ|سورة)\s*/, '').trim();
+    const cleanSurah = cleanSurahName(surahName);
     ctx.fillText(`سورة ${cleanSurah} — الآية (${toArabicDigits(ayahNum)})`, 540, 140);
 
     ctx.fillStyle = '#ffffff';
@@ -549,8 +581,8 @@
           savedAt: Date.now()
         })
       );
-      const cleanSurahName = surahNameAr.replace(/^(سُورَةُ|سورة)\s*/, '').trim();
-      showToast(`تم حفظ آخر قراءة: سورة ${cleanSurahName} — آية ${toArabicDigits(ayah)} (صفحة ${toArabicDigits(state.currentPage)})`);
+      const cName = cleanSurahName(surahNameAr);
+      showToast(`تم حفظ آخر قراءة: سورة ${cName} — آية ${toArabicDigits(ayah)} (صفحة ${toArabicDigits(state.currentPage)})`);
       return;
     }
 
@@ -909,9 +941,9 @@
 
   async function init() {
     initTabs();
+    initTabbarToggle();
     initDuaBanner();
     initIndexOverlay();
-    initPageNav();
     initSwipeNavigation();
     initSwipeHintOnce();
     initAyahModal();

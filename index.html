@@ -74,6 +74,12 @@
     <symbol id="icon-play" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></symbol>
     <symbol id="icon-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></symbol>
     <symbol id="icon-bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 9l7 7 7-7"/>
+    </symbol>
+    <symbol id="icon-chevron-up" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M19 15l-7-7-7 7"/>
+    </symbol>
   </defs>
 </svg>
 
@@ -105,7 +111,9 @@
 
         <div id="surah-header">
           <div class="surah-header-ornament">
+            <span class="ornament-flourish right" aria-hidden="true"></span>
             <span id="surah-name-ar">الفاتحة</span>
+            <span class="ornament-flourish left" aria-hidden="true"></span>
           </div>
           <div id="surah-meta"></div>
           <div id="bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
@@ -114,11 +122,7 @@
         <div id="ayat-container" class="mushaf-text"></div>
       </article>
 
-      <nav id="surah-nav">
-        <button id="btn-prev-surah" class="nav-chip">الصفحة السابقة ‹</button>
-        <span id="surah-progress"></span>
-        <button id="btn-next-surah" class="nav-chip">› الصفحة التالية</button>
-      </nav>
+      <div id="surah-progress-pill"><span id="surah-progress"></span></div>
     </div>
   </section>
 
@@ -176,6 +180,9 @@
 
 <!-- ===== شريط التبويبات السفلي ===== -->
 <nav id="tabbar">
+  <button id="btn-hide-tabbar" aria-label="إخفاء الشريط">
+    <svg><use href="#icon-chevron-down"></use></svg>
+  </button>
   <button class="tab-btn active" data-tab="quran">
     <svg><use href="#icon-book"></use></svg>
     <span>القرآن</span>
@@ -193,6 +200,11 @@
     <span>الصلاة والقبلة</span>
   </button>
 </nav>
+
+<!-- زر صغير لإظهار الشريط السفلي بعد إخفائه -->
+<button id="btn-show-tabbar" aria-label="إظهار الشريط">
+  <svg><use href="#icon-chevron-up"></use></svg>
+</button>
 
 <!-- ===== فهرس السور ===== -->
 <div id="index-overlay" class="overlay">
